@@ -1,0 +1,1261 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>겹받침 놀이터</title>
+  <style>
+    html { color-scheme: light; }
+    body { margin: 0; font: 14px system-ui, sans-serif; }
+    img { max-width: 100%; }
+    [hidden] { display: none !important; }
+  </style>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Gaegu:wght@400;700&family=Gowun+Dodum&display=swap');
+
+  :root{
+    --board-1:#1c3328;
+    --board-2:#132419;
+    --chalk:#f5f2e6;
+    --chalk-dim:#c9d3c8;
+    --paper:#fdf7e8;
+    --paper-2:#f5ead0;
+    --paper-edge:#e7d9ad;
+    --guide:#d9cba3;
+    --cell-line:#c8b98c;
+    --ink:#33291d;
+    --ink-soft:#7a6a52;
+    --amber:#f2b134;
+    --amber-soft:#ffe9b3;
+    --amber-dark:#c9871a;
+    --blue:#4f86c6;
+    --green:#5fb87d;
+    --green-dark:#3c8e5b;
+    --red:#e2725b;
+    --red-dark:#b8543f;
+    --tape:#f0e2ad;
+    --radius-lg:22px;
+    --cell:150px;
+  }
+
+  *{box-sizing:border-box;}
+  html, body{ height:100%; }
+  body{
+    margin:0;
+    overflow:hidden;              /* 판을 창에 맞춰 통째로 축소하므로 스크롤이 생기지 않는다 */
+    height:100vh;
+    height:100dvh;
+    background:
+      radial-gradient(ellipse at 20% 10%, rgba(255,255,255,0.05), transparent 40%),
+      radial-gradient(ellipse at 85% 80%, rgba(255,255,255,0.04), transparent 45%),
+      linear-gradient(160deg, var(--board-1), var(--board-2));
+    color:var(--chalk);
+    font-family:'Gowun Dodum','Apple SD Gothic Neo','Malgun Gothic',sans-serif;
+    font-size:14px;
+  }
+
+  /* ---------- 고정 크기 판 (창에 맞게 scale) ---------- */
+  /* 판은 화면 아래쪽에 붙인다 — 키 작은 학생이 조작부에 손이 닿도록, 남는 공간은 위로 */
+  .board{
+    position:fixed;
+    left:50%; bottom:12px;
+    transform:translateX(-50%) scale(var(--s,1));
+    transform-origin:bottom center;
+    display:grid;
+  }
+  :root[data-orient="landscape"] .board{
+    width:1400px; height:780px;
+    grid-template-columns:1fr 520px;
+    grid-template-rows:auto 1fr auto;
+    grid-template-areas:
+      "head prog"
+      "sheet sheet"
+      "side side";
+    gap:14px 30px;
+  }
+  :root[data-orient="portrait"] .board{
+    width:640px; height:1140px;
+    grid-template-columns:1fr;
+    grid-template-rows:auto auto 1fr auto;
+    grid-template-areas:
+      "head"
+      "prog"
+      "sheet"
+      "side";
+    gap:16px;
+  }
+  :root[data-orient="landscape"]{ --cell:200px; }
+  /* 가로(전자칠판) 화면: 맨 뒷자리에서도 보이도록 그림과 문장 힌트를 크게 */
+  :root[data-orient="landscape"] .pic-card{ width:100%; gap:14px; }
+  :root[data-orient="landscape"] .pic-frame{
+    width:100%;
+    min-height:270px;
+    padding:20px 24px;
+    transform:rotate(0.8deg);
+  }
+  :root[data-orient="landscape"] .scene .em{ font-size:128px; }
+  :root[data-orient="landscape"] .scene.row{ gap:28px; }
+  :root[data-orient="landscape"] .scene.row .em{ font-size:120px; }
+  :root[data-orient="landscape"] .scene.stack .em{ font-size:96px; }
+  :root[data-orient="landscape"] .scene.stack .arrow{ font-size:30px; margin:6px 0; }
+  :root[data-orient="landscape"] .scene.compare{ gap:40px; }
+  :root[data-orient="landscape"] .scene.compare .em{ font-size:90px; }
+  :root[data-orient="landscape"] .scene.compare .em.pick{ font-size:120px; outline-width:7px; outline-offset:12px; }
+  :root[data-orient="landscape"] .scene.many{ gap:8px 14px; }
+  :root[data-orient="landscape"] .scene.many .em{ font-size:58px; }
+  :root[data-orient="landscape"] .pic-caption{
+    font-size:40px;
+    font-weight:700;
+    line-height:1.3;
+    max-width:100%;
+  }
+  :root[data-orient="landscape"] .pic-caption .blank{ letter-spacing:4px; }
+  :root[data-orient="landscape"] .feedback{ font-size:26px; }
+  :root[data-orient="landscape"] .composed-word{ font-size:44px; }
+  .board-header{ grid-area:head; }
+  .progress-row{ grid-area:prog; }
+  .worksheet{ grid-area:sheet; }
+  .side{ grid-area:side; display:flex; flex-direction:column; gap:12px; min-height:0; }
+  .result{ grid-area:1 / 1 / -1 / -1; align-self:center; justify-self:center; }
+
+  /* ---------- header ---------- */
+  .board-header{ display:flex; flex-direction:column; justify-content:center; }
+  :root[data-orient="landscape"] .board-header{
+    flex-direction:row; align-items:baseline; gap:18px; text-align:left;
+  }
+  :root[data-orient="portrait"] .board-header{ align-items:center; text-align:center; }
+  .board-header h1{
+    font-family:'Gaegu',cursive;
+    font-weight:700;
+    font-size:42px;
+    color:var(--chalk);
+    margin:0 0 2px;
+    letter-spacing:.5px;
+    line-height:1.1;
+  }
+  :root[data-orient="landscape"] .board-header h1{ font-size:38px; margin:0; }
+  .squiggle{ display:block; width:250px; height:12px; margin:0 0 8px; }
+  :root[data-orient="portrait"] .squiggle{ margin:0 auto 8px; }
+  :root[data-orient="landscape"] .squiggle{ display:none; }
+  .squiggle path{ fill:none; stroke:var(--amber); stroke-width:5; stroke-linecap:round; }
+  .subtitle{ margin:0; color:var(--chalk-dim); font-size:17px; }
+
+  /* ---------- progress ---------- */
+  .progress-row{ display:flex; flex-direction:column; justify-content:center; gap:6px; }
+  .progress-track{ width:100%; height:12px; border-radius:99px; background:rgba(255,255,255,0.14); overflow:hidden; }
+  .progress-fill{ height:100%; width:10%; background:linear-gradient(90deg,var(--amber),var(--amber-dark)); border-radius:99px; transition:width .4s ease; }
+  .progress-meta{ display:flex; justify-content:space-between; align-items:center; font-size:15px; color:var(--chalk-dim); font-variant-numeric:tabular-nums; }
+  .progress-meta .q-count{ color:var(--chalk); font-weight:700; }
+  .level-chip, .score-chip{
+    background:rgba(255,255,255,0.1);
+    border:1px solid rgba(255,255,255,0.18);
+    color:var(--chalk);
+    padding:4px 12px;
+    border-radius:99px;
+    font-size:13px;
+  }
+  .level-chip{ color:var(--amber); border-color:rgba(242,177,52,0.4); }
+
+  /* ---------- worksheet (paper) card ---------- */
+  .worksheet{
+    position:relative;
+    min-height:0;
+    background:var(--paper);
+    border:1px solid var(--paper-edge);
+    border-radius:var(--radius-lg);
+    box-shadow:0 22px 44px rgba(0,0,0,0.32), 0 2px 0 rgba(0,0,0,0.08);
+    padding:28px 28px 24px;
+    transform:rotate(-0.5deg);
+    color:var(--ink);
+    display:grid;
+    grid-template-areas:
+      "pic"
+      "word"
+      "status";
+    justify-items:center;
+    align-content:center;
+    gap:12px;
+  }
+  /* 가로 화면: 그림 카드와 글자 칸을 나란히 두어 문제 공간의 높이를 줄인다 */
+  :root[data-orient="landscape"] .worksheet{
+    grid-template-columns:1fr 1fr;
+    grid-template-areas:
+      "pic word"
+      "status status";
+    align-items:center;
+    column-gap:24px;
+    padding:22px 28px 18px;
+  }
+  .pic-card{ grid-area:pic; }
+  .word-block{ grid-area:word; display:flex; flex-direction:column; align-items:center; gap:12px; }
+  .status-area{ grid-area:status; }
+  .worksheet::before, .worksheet::after{
+    content:"";
+    position:absolute;
+    top:-14px;
+    width:74px; height:26px;
+    background:var(--tape);
+    opacity:.85;
+    box-shadow:0 3px 6px rgba(0,0,0,0.15);
+  }
+  .worksheet::before{ left:26px; transform:rotate(-7deg); }
+  .worksheet::after{ right:26px; transform:rotate(6deg); }
+
+  .worksheet.shake{ animation:shake .5s; }
+  @keyframes shake{
+    0%,100%{ transform:rotate(-0.5deg) translateX(0); }
+    20%,60%{ transform:rotate(-0.5deg) translateX(-8px); }
+    40%,80%{ transform:rotate(-0.5deg) translateX(8px); }
+  }
+
+  /* ---------- 그림 카드: 이모지 장면 + 문장 힌트 ---------- */
+  .pic-card{ display:flex; flex-direction:column; align-items:center; gap:10px; }
+  .pic-frame{
+    min-width:150px;
+    min-height:100px;
+    padding:10px 18px;
+    background:#fff;
+    border:1px solid var(--paper-edge);
+    border-radius:16px;
+    display:flex; align-items:center; justify-content:center;
+    box-shadow:0 8px 18px rgba(0,0,0,0.12);
+    transform:rotate(1.5deg);
+  }
+  .scene{ display:flex; align-items:center; justify-content:center; line-height:1; }
+  .scene .em{ font-size:44px; line-height:1; }
+  .scene.row{ gap:10px; }
+  .scene.row .em{ font-size:40px; }
+  .scene.stack{ flex-direction:column; gap:0; }
+  .scene.stack .em{ font-size:36px; }
+  .scene.stack .arrow{ font-size:15px; color:var(--amber-dark); line-height:1; margin:2px 0; }
+  .scene.many{ display:grid; gap:4px 6px; }
+  .scene.many .em{ font-size:24px; }
+  .scene.compare{ gap:18px; }
+  .scene.compare .em{ font-size:36px; opacity:.4; }
+  .scene.compare .em.pick{
+    opacity:1;
+    font-size:44px;
+    outline:4px solid var(--red);
+    outline-offset:6px;
+    border-radius:50%;
+  }
+  .pic-caption{
+    margin:0;
+    font-size:19px;
+    color:var(--ink);
+    text-align:center;
+    text-wrap:balance;
+    word-break:keep-all;
+    max-width:26em;
+  }
+  .pic-caption .blank{ color:var(--amber-dark); letter-spacing:2px; font-weight:700; }
+
+  /* ---------- 글자 칸 (1학년 쓰기 공책의 십자 점선 칸) ---------- */
+  .word-row{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:10px;
+    font-family:'Gaegu',cursive;
+    font-weight:700;
+  }
+  .cell{
+    position:relative;
+    width:var(--cell);
+    height:var(--cell);
+    background:#fff;
+    border:2px solid var(--cell-line);
+    border-radius:8px;
+    flex-shrink:0;
+  }
+  .cell::before, .cell::after{ content:""; position:absolute; pointer-events:none; }
+  .cell::before{ left:50%; top:8px; bottom:8px; border-left:2px dashed var(--guide); margin-left:-1px; }
+  .cell::after{ top:50%; left:8px; right:8px; border-top:2px dashed var(--guide); margin-top:-1px; }
+  .cell > *{ position:relative; z-index:1; }
+  .cell[hidden]{ display:none; }
+  .target-cell::after{ display:none; }
+
+  .fixed-cell{
+    display:flex; align-items:center; justify-content:center;
+    font-size:calc(var(--cell) * 0.68);
+    line-height:1;
+  }
+  .target-cell{
+    display:flex;
+    flex-direction:column;
+    border-color:var(--amber-dark);
+    box-shadow:0 0 0 4px rgba(242,177,52,0.18);
+  }
+  .cell-top{
+    height:60%;
+    display:flex; align-items:flex-end; justify-content:center;
+    padding-bottom:2px;
+    overflow:hidden;
+  }
+  .cell-top span{
+    display:block;
+    font-size:calc(var(--cell) * 0.66);
+    line-height:1;
+    transform:scale(1.08, 0.78);
+    transform-origin:center bottom;
+  }
+  .cell-bottom{
+    height:40%;
+    display:flex;
+    gap:4px;
+    padding:0 6px 6px;
+  }
+  .slot{
+    flex:1;
+    min-width:0;
+    height:100%;
+    border-radius:10px;
+    border:3px dashed var(--amber-dark);
+    background:#fff8e8;
+    color:var(--ink);
+    font-family:'Gaegu',cursive;
+    font-weight:700;
+    font-size:calc(var(--cell) * 0.28);
+    line-height:1;
+    display:flex; align-items:center; justify-content:center;
+    cursor:pointer;
+    padding:0;
+    transition:transform .12s ease, background .12s ease;
+  }
+  .slot:empty::after{
+    content:attr(data-order);
+    color:var(--amber-dark);
+    opacity:.55;
+    font-size:13px;
+    font-family:'Gowun Dodum',sans-serif;
+    font-weight:400;
+  }
+  .slot.filled{ border-style:solid; background:#fff; }
+  .slot.drop-over,
+  .target-cell.drop-over .slot:empty{
+    background:var(--amber-soft);
+    border-color:var(--amber);
+    transform:scale(1.06);
+  }
+  .slot.correct{ border-color:var(--green-dark); background:#eafaf0; color:var(--green-dark); }
+  .slot.revealed{ border-color:var(--ink-soft); background:#f1ede2; color:var(--ink-soft); }
+
+  .cell-composed{
+    position:absolute; inset:0;
+    display:flex; align-items:center; justify-content:center;
+    font-size:calc(var(--cell) * 0.68);
+    line-height:1;
+    animation:pop .35s ease;
+  }
+  .cell-composed[hidden]{ display:none; }
+  .target-cell.done .cell-top, .target-cell.done .cell-bottom{ visibility:hidden; }
+  .target-cell.correct{ border-color:var(--green-dark); box-shadow:0 0 0 4px rgba(95,184,125,0.22); color:var(--green-dark); }
+  .target-cell.revealed{ border-color:var(--ink-soft); box-shadow:none; color:var(--ink-soft); }
+
+  .cell-caption{ margin:0; text-align:center; font-size:14px; color:var(--ink-soft); }
+  .cell-caption b{ color:var(--amber-dark); }
+
+  /* 정답·피드백 영역은 높이를 고정해 두어 내용이 바뀌어도 카드가 출렁이지 않는다 */
+  .status-area{
+    height:96px;
+    width:100%;
+    display:flex; flex-direction:column; align-items:center; justify-content:flex-start;
+    gap:6px;
+  }
+  .composed-row{ display:flex; align-items:center; justify-content:center; gap:12px; }
+  .composed-row[hidden]{ display:none; }
+  .composed-word{
+    font-family:'Gaegu',cursive;
+    font-weight:700;
+    font-size:36px;
+    line-height:1.1;
+    background:var(--paper-2);
+    padding:2px 20px;
+    border-radius:14px;
+    animation:pop .35s ease;
+  }
+  @keyframes pop{ from{ transform:scale(.7); opacity:0; } to{ transform:scale(1); opacity:1; } }
+  .sound-btn{
+    border:none; background:var(--blue); color:#fff;
+    width:44px; height:44px; border-radius:50%;
+    font-size:19px; cursor:pointer;
+    box-shadow:0 6px 14px rgba(0,0,0,0.18);
+  }
+  .sound-btn:active{ transform:scale(.92); }
+  /* 발음 표기: 스피커를 누르면 오른쪽에 [밥따]처럼 나타난다 */
+  .pron{
+    font-family:'Gaegu',cursive;
+    font-weight:700;
+    font-size:30px;
+    color:var(--blue);
+    line-height:1.1;
+    animation:pop .3s ease;
+  }
+  .pron[hidden]{ display:none; }
+  :root[data-orient="landscape"] .pron{ font-size:40px; }
+
+  .feedback{ min-height:1.4em; text-align:center; font-size:21px; font-weight:700; }
+  .feedback.correct{ color:var(--green-dark); }
+  .feedback.wrong{ color:var(--red-dark); }
+  .feedback.info{ color:var(--ink-soft); }
+  .hint{ text-align:center; font-size:15px; color:var(--ink-soft); }
+  .hint[hidden]{ display:none; }
+
+  /* ---------- keypad (chalk tiles, on the board) ---------- */
+  .keypad{
+    width:100%;
+    display:grid;
+    grid-template-columns:repeat(7, 1fr);
+    gap:10px;
+  }
+  .key{
+    height:64px;
+    border-radius:12px;
+    border:2px solid rgba(245,242,230,0.55);
+    background:rgba(245,242,230,0.06);
+    color:var(--chalk);
+    font-family:'Gaegu',cursive;
+    font-weight:700;
+    font-size:28px;
+    cursor:grab;
+    transition:background .15s ease, transform .1s ease, opacity .15s ease;
+    touch-action:none;
+    user-select:none;
+    -webkit-user-select:none;
+    -webkit-user-drag:none;
+    -webkit-touch-callout:none;
+    padding:0;
+  }
+  .key:hover{ background:rgba(245,242,230,0.16); }
+  .key:active{ transform:scale(.94); }
+  .key.dragging{ opacity:.35; }
+  .key:disabled{ opacity:.35; cursor:not-allowed; }
+  .key-clear{
+    grid-column:span 7;
+    height:50px;
+    background:rgba(226,114,91,0.12);
+    border-color:rgba(226,114,91,0.55);
+    cursor:pointer;
+    touch-action:auto;
+    font-size:20px;
+    font-family:'Gowun Dodum',sans-serif;
+  }
+  .key-clear:hover{ background:rgba(226,114,91,0.22); }
+
+  /* 가로 화면: 자음 14개 + 지우기를 한 줄로, 손이 닿는 맨 아래에 크게 */
+  :root[data-orient="landscape"] .keypad{ grid-template-columns:repeat(16, 1fr); gap:10px; }
+  :root[data-orient="landscape"] .key{ height:84px; font-size:36px; }
+  :root[data-orient="landscape"] .key-clear{ grid-column:span 2; height:84px; font-size:20px; }
+
+  .drag-ghost{
+    position:fixed; left:0; top:0;
+    border-radius:12px;
+    background:var(--amber);
+    color:var(--ink);
+    font-family:'Gaegu',cursive;
+    font-weight:700;
+    display:flex; align-items:center; justify-content:center;
+    pointer-events:none;
+    z-index:1000;
+    box-shadow:0 14px 28px rgba(0,0,0,0.38);
+    will-change:transform;
+  }
+
+  /* ---------- actions ---------- */
+  .actions{ display:flex; flex-direction:column; align-items:center; gap:12px; }
+  .actions-main{ display:flex; gap:12px; justify-content:center; }
+  :root[data-orient="landscape"] .actions{
+    display:grid;
+    grid-template-columns:1fr auto 1fr;
+    align-items:center;
+  }
+  :root[data-orient="landscape"] .actions-main{ grid-column:2; }
+  :root[data-orient="landscape"] .teacher-controls{ grid-column:3; justify-self:end; }
+  .btn{
+    border:none;
+    border-radius:99px;
+    padding:16px 40px;
+    font-family:'Gowun Dodum',sans-serif;
+    font-weight:700;
+    font-size:22px;
+    cursor:pointer;
+    box-shadow:0 8px 18px rgba(0,0,0,0.22);
+    transition:transform .1s ease, opacity .15s ease;
+  }
+  .btn:active{ transform:scale(.96); }
+  .btn.hidden{ display:none; }
+  .btn-primary{ background:var(--blue); color:#fff; }
+  .btn-primary:disabled{ opacity:.4; cursor:not-allowed; box-shadow:none; }
+  .btn-success{ background:var(--green); color:#fff; }
+
+  .teacher-controls{ display:flex; gap:10px; }
+  .btn-ghost{
+    background:transparent;
+    color:var(--chalk-dim);
+    border:1.5px solid rgba(245,242,230,0.4);
+    padding:8px 16px;
+    border-radius:99px;
+    font-size:14px;
+    cursor:pointer;
+    font-family:'Gowun Dodum',sans-serif;
+  }
+  .btn-ghost:hover{ color:var(--chalk); border-color:rgba(245,242,230,0.7); }
+
+  /* ---------- result ---------- */
+  .result{
+    width:560px;
+    background:var(--paper);
+    border:1px solid var(--paper-edge);
+    border-radius:var(--radius-lg);
+    box-shadow:0 22px 44px rgba(0,0,0,0.32);
+    padding:36px;
+    text-align:center;
+    color:var(--ink);
+  }
+  .result[hidden]{ display:none; }
+  .result h2{ font-family:'Gaegu',cursive; font-size:40px; margin:0 0 8px; }
+  .result .score-line{ font-size:20px; margin:0 0 18px; font-variant-numeric:tabular-nums; }
+  .review-title{ font-weight:700; margin:0 0 10px; color:var(--ink-soft); font-size:15px; }
+  .review-chips{ display:flex; flex-wrap:wrap; gap:8px; justify-content:center; margin-bottom:22px; }
+  .review-chip{
+    background:var(--paper-2);
+    border:1px solid var(--paper-edge);
+    border-radius:99px;
+    padding:8px 16px;
+    font-family:'Gaegu',cursive;
+    font-weight:700;
+    font-size:16px;
+  }
+  .review-chip small{ display:block; font-family:'Gowun Dodum',sans-serif; font-weight:400; font-size:11px; color:var(--ink-soft); }
+
+  @media (prefers-reduced-motion:reduce){
+    .worksheet.shake{ animation:none; }
+    .composed-word, .cell-composed{ animation:none; }
+    .btn, .key, .sound-btn, .slot{ transition:none; }
+  }
+
+  :focus-visible{ outline:3px solid var(--amber); outline-offset:2px; }
+</style>
+</head>
+<body>
+
+
+<div class="board" id="board">
+  <header class="board-header stage-el">
+    <h1>겹받침 놀이터</h1>
+    <svg class="squiggle" viewBox="0 0 320 14" preserveAspectRatio="none" aria-hidden="true">
+      <path d="M2 10 Q 40 0, 80 8 T 160 8 T 240 8 T 318 6" />
+    </svg>
+    <p class="subtitle">그림을 보고, 알맞은 받침을 글자 아래 받침 자리에 놓아 보세요!</p>
+  </header>
+
+  <div class="progress-row stage-el">
+    <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+    <div class="progress-meta">
+      <span><span class="q-count" id="q-num">1</span> / <span id="q-total">10</span>문제</span>
+      <span class="level-chip" id="level-chip">쉬움</span>
+      <span class="score-chip" id="score-chip">맞은 개수 0개</span>
+    </div>
+  </div>
+
+  <div class="worksheet stage-el" id="worksheet">
+    <div class="pic-card">
+      <div class="pic-frame" id="pic-frame" aria-hidden="true"></div>
+      <p class="pic-caption" id="pic-caption"></p>
+    </div>
+
+    <div class="word-block">
+      <div class="word-row" id="word-row">
+        <div class="cell fixed-cell" id="prefix-cell" hidden><span id="prefix-letter"></span></div>
+
+        <div class="cell target-cell" id="target-cell">
+          <div class="cell-top"><span id="target-letter">마</span></div>
+          <div class="cell-bottom">
+            <button type="button" class="slot" id="slot-0" data-index="0" data-order="1" aria-label="받침 첫 번째 자음 자리"></button>
+            <button type="button" class="slot" id="slot-1" data-index="1" data-order="2" aria-label="받침 두 번째 자음 자리"></button>
+          </div>
+          <div class="cell-composed" id="cell-composed" hidden></div>
+        </div>
+
+        <div class="cell fixed-cell" id="suffix-cell" hidden><span id="suffix-letter"></span></div>
+      </div>
+      <p class="cell-caption">받침은 글자의 <b>아래쪽</b>에 써요 · 자음을 눌러도 되고, 받침 자리로 끌어다 놓아도 돼요</p>
+    </div>
+
+    <div class="status-area">
+      <div class="feedback" id="feedback" aria-live="polite"></div>
+      <div class="composed-row" id="composed-row" hidden>
+        <span class="composed-word" id="composed-word"></span>
+        <button type="button" class="sound-btn" id="sound-btn" aria-label="단어 소리 듣기">🔊</button>
+        <span class="pron" id="pron" hidden></span>
+      </div>
+      <div class="hint" id="hint" hidden></div>
+    </div>
+  </div>
+
+  <div class="side stage-el">
+    <div class="keypad" id="keypad"></div>
+    <div class="actions">
+      <div class="actions-main">
+        <button type="button" id="check-btn" class="btn btn-primary" disabled>정답 확인</button>
+        <button type="button" id="next-btn" class="btn btn-success hidden">다음 문제 ➡️</button>
+      </div>
+      <div class="teacher-controls">
+        <button type="button" id="skip-btn" class="btn-ghost" title="어려우면 건너뛸 수 있어요">건너뛰기</button>
+        <button type="button" id="reveal-btn" class="btn-ghost" title="선생님이 정답을 보여줍니다">🧑‍🏫 정답 보기</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="result" id="result-area" hidden>
+    <h2>🎉 참 잘했어요! 🎉</h2>
+    <p class="score-line" id="score-line">10문제 중 0문제를 맞혔어요</p>
+    <div id="review-block">
+      <p class="review-title">다시 살펴보면 좋은 겹받침</p>
+      <div class="review-chips" id="review-chips"></div>
+    </div>
+    <button type="button" class="btn btn-primary" id="restart-btn">다른 문제로 다시 하기 🔄</button>
+  </div>
+</div>
+
+<script>
+  // ---------- 창에 맞춰 판 크기 조절 (어떤 창·기기에서도 스크롤 없음) ----------
+  const board = document.getElementById('board');
+  const DESIGN = { landscape:{ w:1400, h:780 }, portrait:{ w:640, h:1140 } };
+  function fitBoard(){
+    const vw = window.innerWidth, vh = window.innerHeight;
+    const orient = vw / vh >= 1 ? 'landscape' : 'portrait';
+    document.documentElement.dataset.orient = orient;
+    const d = DESIGN[orient];
+    const margin = 24;
+    const s = Math.min((vw - margin) / d.w, (vh - margin) / d.h);
+    board.style.setProperty('--s', s.toFixed(4));
+  }
+  fitBoard();
+  window.addEventListener('resize', fitBoard);
+  window.addEventListener('orientationchange', fitBoard);
+  if (window.visualViewport) window.visualViewport.addEventListener('resize', fitBoard);
+
+  // ---------- 한글 자모 결합 도구 ----------
+  const JONG_TABLE = ['', 'ㄱ','ㄲ','ㄳ','ㄴ','ㄵ','ㄶ','ㄷ','ㄹ','ㄺ','ㄻ','ㄼ','ㄽ','ㄾ','ㄿ','ㅀ','ㅁ','ㅂ','ㅄ','ㅅ','ㅆ','ㅇ','ㅈ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ'];
+
+  // 겹받침을 이루는 낱자음 두 개 (쓰는 순서 그대로: 왼쪽 칸 → 오른쪽 칸)
+  const COMPOUND_PARTS = {
+    'ㄳ': ['ㄱ','ㅅ'],
+    'ㄵ': ['ㄴ','ㅈ'],
+    'ㄶ': ['ㄴ','ㅎ'],
+    'ㄺ': ['ㄹ','ㄱ'],
+    'ㄼ': ['ㄹ','ㅂ'],
+    'ㄾ': ['ㄹ','ㅌ'],
+    'ㅀ': ['ㄹ','ㅎ'],
+    'ㅄ': ['ㅂ','ㅅ'],
+  };
+
+  const KEYS = ['ㄱ','ㄴ','ㄷ','ㄹ','ㅁ','ㅂ','ㅅ','ㅇ','ㅈ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ'];
+  const LEVEL_NAMES = { 1:'쉬움', 2:'보통', 3:'어려움' };
+
+  function decomposeBase(char){
+    const code = char.charCodeAt(0) - 0xAC00;
+    const cho = Math.floor(code / (21 * 28));
+    const jung = Math.floor((code % (21 * 28)) / 28);
+    return { cho, jung };
+  }
+  function composeSyllable(cho, jung, jongIndex){
+    return String.fromCharCode(0xAC00 + (cho * 21 + jung) * 28 + jongIndex);
+  }
+  function composeChar(quiz){
+    const { cho, jung } = decomposeBase(quiz.target);
+    return composeSyllable(cho, jung, JONG_TABLE.indexOf(quiz.answer));
+  }
+  function composeWord(quiz){
+    return `${quiz.prefix}${composeChar(quiz)}${quiz.suffix}`;
+  }
+
+  // ---------- 문제 데이터 ----------
+  // prefix: 앞글자 / target: 받침이 없는 상태의 글자 / suffix: 뒷글자 / answer: 정답 겹받침
+  // level: 난이도 1(쉬움) 2(보통) 3(어려움) — 자주 쓰고 그림이 분명한 낱말일수록 쉬움
+  // scene: 그림 장면. layout ─ row(나란히) / stack(위에서 아래로, 화살표) / many(여러 개) / compare(둘 중 하나 고르기: pick 표시)
+  // caption: 문장 힌트. {w}는 낱말 길이만큼 ○로 바뀐다.
+  const allQuizData = [
+    // ㄺ
+    { prefix:'', target:'다', suffix:'',  answer:'ㄺ', level:1, // 닭
+      scene:{ layout:'row', parts:['🐔','🥚'] }, caption:'꼬끼오! 알을 낳는 새는 {w}' },
+    { prefix:'', target:'이', suffix:'다', answer:'ㄺ', level:1, // 읽다
+      scene:{ layout:'row', parts:['👧','📖'] }, caption:'책을 소리 내어 {w}' },
+    { prefix:'', target:'부', suffix:'다', answer:'ㄺ', level:1, // 붉다
+      scene:{ layout:'row', parts:['🍎','🍓','🌹'] }, caption:'사과, 딸기, 장미는 색깔이 {w}' },
+    { prefix:'', target:'흐', suffix:'',  answer:'ㄺ', level:1, // 흙
+      scene:{ layout:'stack', parts:['🌱','🟫'] }, caption:'화분에 담긴 갈색 {w}' },
+    { prefix:'', target:'마', suffix:'다', answer:'ㄺ', level:1, // 맑다
+      scene:{ layout:'row', parts:['☀️','🏞️'] }, caption:'구름 한 점 없어요. 날씨가 {w}' },
+    { prefix:'', target:'바', suffix:'다', answer:'ㄺ', level:2, // 밝다
+      scene:{ layout:'row', parts:['💡','✨','😊'] }, caption:'불을 켜니 방이 환하게 {w}' },
+    { prefix:'', target:'구', suffix:'다', answer:'ㄺ', level:2, // 굵다
+      scene:{ layout:'compare', parts:[{e:'🥢'},{e:'🪵',pick:true}] }, caption:'통나무는 젓가락보다 {w}' },
+    { prefix:'', target:'느', suffix:'다', answer:'ㄺ', level:2, // 늙다
+      scene:{ layout:'compare', parts:[{e:'👶'},{e:'👴',pick:true}] }, caption:'할아버지는 나이가 많아 {w}' },
+    // ㄼ
+    { prefix:'', target:'너', suffix:'다', answer:'ㄼ', level:1, // 넓다
+      scene:{ layout:'row', parts:['🌊','🌊','🌊'] }, caption:'끝이 안 보여요. 바다가 아주 {w}' },
+    { prefix:'', target:'바', suffix:'다', answer:'ㄼ', level:1, // 밟다
+      scene:{ layout:'stack', parts:['👟','🍂'] }, caption:'발로 낙엽을 꾹 {w}' },
+    { prefix:'', target:'짜', suffix:'다', answer:'ㄼ', level:1, // 짧다
+      scene:{ layout:'compare', parts:[{e:'👖'},{e:'🩳',pick:true}] }, caption:'반바지는 긴 바지보다 {w}' },
+    { prefix:'여', target:'더', suffix:'',  answer:'ㄼ', level:1, // 여덟
+      scene:{ layout:'many', parts:['🍬','🍬','🍬','🍬','🍬','🍬','🍬','🍬'] }, caption:'사탕이 몇 개? {w} 개' },
+    { prefix:'', target:'야', suffix:'다', answer:'ㄼ', level:2, // 얇다
+      scene:{ layout:'compare', parts:[{e:'📚'},{e:'📄',pick:true}] }, caption:'종이 한 장은 두꺼운 책보다 {w}' },
+    // ㅄ
+    { prefix:'', target:'가', suffix:'',  answer:'ㅄ', level:1, // 값
+      scene:{ layout:'row', parts:['🍎','🏷️','💰'] }, caption:'사과 한 개에 얼마? 물건의 {w}' },
+    { prefix:'', target:'어', suffix:'다', answer:'ㅄ', level:1, // 없다
+      scene:{ layout:'row', parts:['🫙','🚫','🍪'] }, caption:'통에 과자가 하나도 {w}' },
+    { prefix:'가', target:'여', suffix:'다', answer:'ㅄ', level:3, // 가엾다
+      scene:{ layout:'row', parts:['🌧️','🐶','😢'] }, caption:'비를 맞는 강아지가 불쌍하고 {w}' },
+    // ㄳ
+    { prefix:'', target:'모', suffix:'',  answer:'ㄳ', level:2, // 몫
+      scene:{ layout:'row', parts:['🍕','👧','👦'] }, caption:'피자를 나누어요. 내가 가질 내 {w}' },
+    // ㄵ
+    { prefix:'', target:'아', suffix:'다', answer:'ㄵ', level:1, // 앉다
+      scene:{ layout:'stack', parts:['🧒','🪑'] }, caption:'의자에 {w}' },
+    { prefix:'', target:'어', suffix:'다', answer:'ㄵ', level:3, // 얹다
+      scene:{ layout:'stack', parts:['🍒','🍰'] }, caption:'케이크 위에 체리를 {w}' },
+    // ㄾ
+    { prefix:'', target:'하', suffix:'다', answer:'ㄾ', level:2, // 핥다
+      scene:{ layout:'row', parts:['🐶','👅','🍦'] }, caption:'강아지가 아이스크림을 혀로 {w}' },
+    { prefix:'', target:'후', suffix:'다', answer:'ㄾ', level:3, // 훑다
+      scene:{ layout:'row', parts:['✋','➡️','🌾'] }, caption:'벼 이삭을 손으로 쭉 {w}' },
+    // ㄶ
+    { prefix:'', target:'마', suffix:'다', answer:'ㄶ', level:1, // 많다
+      scene:{ layout:'many', parts:['🍎','🍎','🍎','🍎','🍎','🍎','🍎','🍎','🍎','🍎'] }, caption:'사과가 아주 {w}' },
+    { prefix:'', target:'끄', suffix:'다', answer:'ㄶ', level:2, // 끊다
+      scene:{ layout:'row', parts:['🧵','✂️'] }, caption:'가위로 실을 싹둑 {w}' },
+    { prefix:'괜', target:'차', suffix:'다', answer:'ㄶ', level:2, // 괜찮다
+      scene:{ layout:'row', parts:['🩹','😊','👍'] }, caption:'넘어졌지만 이제 {w}' },
+    { prefix:'귀', target:'차', suffix:'다', answer:'ㄶ', level:3, // 귀찮다
+      scene:{ layout:'row', parts:['🛌','😩'] }, caption:'일어나기 싫고 {w}' },
+    // ㅀ
+    { prefix:'', target:'시', suffix:'다', answer:'ㅀ', level:1, // 싫다
+      scene:{ layout:'row', parts:['🥦','🙅'] }, caption:'브로콜리는 먹기 {w}' },
+    { prefix:'', target:'끄', suffix:'다', answer:'ㅀ', level:2, // 끓다
+      scene:{ layout:'row', parts:['🔥','🍲','♨️'] }, caption:'물이 보글보글 {w}' },
+    { prefix:'', target:'이', suffix:'다', answer:'ㅀ', level:2, // 잃다
+      scene:{ layout:'row', parts:['🔑','❓','😢'] }, caption:'열쇠가 어디 갔지? 열쇠를 {w}' },
+    { prefix:'', target:'오', suffix:'다', answer:'ㅀ', level:2, // 옳다
+      scene:{ layout:'row', parts:['📝','✅','⭕'] }, caption:'맞았어요! 이 답은 {w}' },
+    { prefix:'', target:'뚜', suffix:'다', answer:'ㅀ', level:3, // 뚫다
+      scene:{ layout:'row', parts:['🪛','🧱','🕳️'] }, caption:'벽에 구멍을 {w}' },
+    { prefix:'', target:'다', suffix:'다', answer:'ㅀ', level:3, // 닳다
+      scene:{ layout:'compare', parts:[{e:'✏️'},{e:'✏️',pick:true,scale:0.5}] }, caption:'연필이 많이 써서 짧게 {w}' },
+    { prefix:'', target:'아', suffix:'다', answer:'ㅀ', level:3, // 앓다
+      scene:{ layout:'row', parts:['🤒','🌡️','🛌'] }, caption:'열이 나서 감기를 {w}' },
+  ];
+
+  // 표준 발음 (표준 발음법 기준). 스피커를 누르면 [ ] 안에 표시되고, 음성도 이 표기를 읽는다.
+  const PRONUNCIATION = {
+    '닭':'닥', '읽다':'익따', '붉다':'북따', '흙':'흑', '맑다':'막따', '밝다':'박따', '굵다':'국따', '늙다':'늑따',
+    '넓다':'널따', '밟다':'밥따', '짧다':'짤따', '여덟':'여덜', '얇다':'얄따',
+    '값':'갑', '없다':'업따', '가엾다':'가엽따',
+    '몫':'목',
+    '앉다':'안따', '얹다':'언따',
+    '핥다':'할따', '훑다':'훌따',
+    '많다':'만타', '끊다':'끈타', '괜찮다':'괜찬타', '귀찮다':'귀찬타',
+    '싫다':'실타', '끓다':'끌타', '잃다':'일타', '옳다':'올타', '뚫다':'뚤타', '닳다':'달타', '앓다':'알타',
+  };
+  function pronunciationOf(word){ return PRONUNCIATION[word] || word; }
+
+  const totalQuestions = 10;
+
+  // ---------- 상태 ----------
+  let currentQuizSet = [];
+  let currentQuestionIndex = 0;
+  let slots = [null, null];        // 받침 자리 두 칸 (왼쪽, 오른쪽)
+  let wrongAttempts = 0;
+  let correctCount = 0;
+  let questionState = 'answering'; // answering | correct | revealed
+  const reviewTypes = new Map();   // answer(예: 'ㄺ') -> 대표 문제
+
+  // ---------- DOM ----------
+  const picFrame = document.getElementById('pic-frame');
+  const picCaption = document.getElementById('pic-caption');
+  const prefixCell = document.getElementById('prefix-cell');
+  const suffixCell = document.getElementById('suffix-cell');
+  const prefixLetter = document.getElementById('prefix-letter');
+  const targetLetter = document.getElementById('target-letter');
+  const suffixLetter = document.getElementById('suffix-letter');
+  const targetCell = document.getElementById('target-cell');
+  const cellComposed = document.getElementById('cell-composed');
+  const slotEls = [document.getElementById('slot-0'), document.getElementById('slot-1')];
+  const worksheet = document.getElementById('worksheet');
+  const feedback = document.getElementById('feedback');
+  const hintEl = document.getElementById('hint');
+  const composedRow = document.getElementById('composed-row');
+  const composedWordEl = document.getElementById('composed-word');
+  const soundBtn = document.getElementById('sound-btn');
+  const pronEl = document.getElementById('pron');
+  const keypad = document.getElementById('keypad');
+  const checkBtn = document.getElementById('check-btn');
+  const nextBtn = document.getElementById('next-btn');
+  const skipBtn = document.getElementById('skip-btn');
+  const revealBtn = document.getElementById('reveal-btn');
+  const progressFill = document.getElementById('progress-fill');
+  const qNum = document.getElementById('q-num');
+  const qTotal = document.getElementById('q-total');
+  const levelChip = document.getElementById('level-chip');
+  const scoreChip = document.getElementById('score-chip');
+  const stageEls = Array.from(document.querySelectorAll('.stage-el'));
+  const resultArea = document.getElementById('result-area');
+  const scoreLine = document.getElementById('score-line');
+  const reviewChips = document.getElementById('review-chips');
+  const restartBtn = document.getElementById('restart-btn');
+
+  qTotal.textContent = totalQuestions;
+
+  // ---------- 셔플 & 문제 뽑기 ----------
+  function shuffle(arr){
+    const a = [...arr];
+    for (let i = a.length - 1; i > 0; i--){
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+
+  function hasAdjacentDuplicateType(list){
+    for (let i = 1; i < list.length; i++){
+      if (list[i].answer === list[i-1].answer) return true;
+    }
+    return false;
+  }
+
+  // 난이도 오름차순(쉬움 → 보통 → 어려움)으로 배열하되, 같은 받침이 연달아 나오지 않게 한다.
+  function orderByDifficulty(items){
+    const levels = [1, 2, 3].map(l => items.filter(it => it.level === l));
+    // 1차: 각 난이도 묶음 안에서만 섞어, 이웃이 겹치지 않는 배열을 찾는다
+    for (let attempt = 0; attempt < 300; attempt++){
+      const seq = levels.flatMap(g => shuffle(g));
+      if (!hasAdjacentDuplicateType(seq)) return seq;
+    }
+    // 2차: 난이도 경계를 조금 느슨하게(이웃한 단계끼리만 살짝 섞임) 다시 시도
+    for (let attempt = 0; attempt < 500; attempt++){
+      const seq = [...items].sort((a, b) => (a.level + Math.random() * 1.2) - (b.level + Math.random() * 1.2));
+      if (!hasAdjacentDuplicateType(seq)) return seq;
+    }
+    return levels.flatMap(g => shuffle(g));
+  }
+
+  // 원하는 난이도에 가장 가까운 낱말을 무작위로 하나 고른다
+  function pickByLevel(pool, wanted){
+    const best = Math.min(...pool.map(it => Math.abs(it.level - wanted)));
+    const candidates = pool.filter(it => Math.abs(it.level - wanted) === best);
+    return shuffle(candidates)[0];
+  }
+
+  // 8종류 겹받침이 매 회차마다 최소 한 번씩은 나오도록 보장하고,
+  // 쉬움·보통·어려움이 고르게(약 4:3:3) 섞이도록 뽑은 뒤, 쉬운 낱말부터 어려운 낱말 순으로 배열한다.
+  function generateQuizSet(){
+    const groups = {};
+    allQuizData.forEach(item => {
+      (groups[item.answer] = groups[item.answer] || []).push(item);
+    });
+    const types = shuffle(Object.keys(groups));
+
+    const wantedLevels = shuffle([1, 1, 1, 2, 2, 2, 3, 3]);
+    const selected = types.map((t, i) => pickByLevel(groups[t], wantedLevels[i]));
+
+    // 남은 두 자리: 쉬운 것 하나, 어려운 것 하나
+    [1, 3].forEach(wanted => {
+      if (selected.length >= totalQuestions) return;
+      const remaining = allQuizData.filter(item => !selected.includes(item));
+      if (remaining.length) selected.push(pickByLevel(remaining, wanted));
+    });
+    return orderByDifficulty(selected);
+  }
+
+  // ---------- 받침 자리 렌더링 ----------
+  function renderSlots(){
+    slotEls.forEach((el, i) => {
+      el.textContent = slots[i] || '';
+      el.classList.toggle('filled', !!slots[i]);
+    });
+    checkBtn.disabled = !(slots[0] && slots[1]);
+  }
+  function firstEmptySlot(){ return slots.indexOf(null); }
+
+  function placeInSlot(index, cons){
+    if (questionState !== 'answering') return;
+    if (index < 0 || index > 1) return;
+    slots[index] = cons;
+    renderSlots();
+  }
+  function selectConsonant(cons){
+    const idx = firstEmptySlot();
+    if (idx === -1) return;
+    placeInSlot(idx, cons);
+  }
+  function clearSlot(index){
+    if (questionState !== 'answering') return;
+    slots[index] = null;
+    renderSlots();
+  }
+  function clearLastSlot(){
+    if (questionState !== 'answering') return;
+    const idx = slots[1] ? 1 : (slots[0] ? 0 : -1);
+    if (idx === -1) return;
+    clearSlot(idx);
+  }
+  function resetSlots(){
+    slots = [null, null];
+    slotEls.forEach(el => { el.className = 'slot'; });
+    renderSlots();
+  }
+
+  // ---------- 키패드: 누르기 + 끌어다 놓기 (포인터 이벤트 → 마우스·터치·펜 공통) ----------
+  const DRAG_THRESHOLD = 8;
+  let drag = null;
+  let suppressClick = false;
+
+  function dropTargetAt(x, y){
+    const el = document.elementFromPoint(x, y);
+    if (!el) return null;
+    return el.closest('.slot') || el.closest('.target-cell');
+  }
+  function slotIndexFor(target){
+    if (!target) return -1;
+    if (target.classList.contains('slot')) return Number(target.dataset.index);
+    return firstEmptySlot();
+  }
+  function makeGhost(cons, sourceBtn){
+    const g = document.createElement('div');
+    g.className = 'drag-ghost';
+    g.textContent = cons;
+    const r = sourceBtn.getBoundingClientRect();   // 판이 확대·축소된 실제 화면 크기
+    g.style.width = `${r.width}px`;
+    g.style.height = `${r.height}px`;
+    g.style.fontSize = `${r.height * 0.5}px`;
+    document.body.appendChild(g);
+    return g;
+  }
+  function positionGhost(g, x, y){
+    g.style.transform = `translate(${x - g.offsetWidth / 2}px, ${y - g.offsetHeight * 0.9}px)`;
+  }
+  function setDropOver(target){
+    if (drag.over === target) return;
+    if (drag.over) drag.over.classList.remove('drop-over');
+    drag.over = target;
+    if (target) target.classList.add('drop-over');
+  }
+  function endDrag(){
+    if (!drag) return;
+    drag.btn.classList.remove('dragging');
+    setDropOver(null);
+    if (drag.ghost) drag.ghost.remove();
+    try { drag.btn.releasePointerCapture(drag.pointerId); } catch (e) {}
+    drag = null;
+  }
+
+  function onKeyPointerDown(e, cons, btn){
+    suppressClick = false;
+    if (questionState !== 'answering' || btn.disabled) return;
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    drag = { cons, btn, startX:e.clientX, startY:e.clientY, moved:false, ghost:null, over:null, pointerId:e.pointerId };
+    try { btn.setPointerCapture(e.pointerId); } catch (err) {}
+  }
+  function onKeyPointerMove(e){
+    if (!drag || e.pointerId !== drag.pointerId) return;
+    const dist = Math.hypot(e.clientX - drag.startX, e.clientY - drag.startY);
+    if (!drag.moved){
+      if (dist < DRAG_THRESHOLD) return;
+      drag.moved = true;
+      drag.ghost = makeGhost(drag.cons, drag.btn);
+      drag.btn.classList.add('dragging');
+    }
+    positionGhost(drag.ghost, e.clientX, e.clientY);
+    setDropOver(dropTargetAt(e.clientX, e.clientY));
+    e.preventDefault();
+  }
+  function onKeyPointerUp(e){
+    if (!drag || e.pointerId !== drag.pointerId) return;
+    const wasDrag = drag.moved;
+    const cons = drag.cons;
+    const target = wasDrag ? dropTargetAt(e.clientX, e.clientY) : null;
+    endDrag();
+    if (!wasDrag) return;
+    suppressClick = true;
+    const idx = slotIndexFor(target);
+    if (idx !== -1) placeInSlot(idx, cons);
+  }
+  function onKeyPointerCancel(e){
+    if (!drag || e.pointerId !== drag.pointerId) return;
+    endDrag();
+  }
+
+  function renderKeypad(){
+    KEYS.forEach(k => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'key';
+      btn.textContent = k;
+      btn.setAttribute('aria-label', `자음 ${k}. 누르거나 받침 자리로 끌어다 놓기`);
+      btn.addEventListener('pointerdown', e => onKeyPointerDown(e, k, btn));
+      btn.addEventListener('pointermove', onKeyPointerMove);
+      btn.addEventListener('pointerup', onKeyPointerUp);
+      btn.addEventListener('pointercancel', onKeyPointerCancel);
+      btn.addEventListener('click', () => {
+        if (suppressClick){ suppressClick = false; return; }
+        if (questionState !== 'answering') return;
+        selectConsonant(k);
+      });
+      keypad.appendChild(btn);
+    });
+    const clearBtn = document.createElement('button');
+    clearBtn.type = 'button';
+    clearBtn.className = 'key key-clear';
+    clearBtn.textContent = '지우기 ⌫';
+    clearBtn.addEventListener('click', clearLastSlot);
+    keypad.appendChild(clearBtn);
+  }
+  function setKeypadEnabled(enabled){
+    keypad.querySelectorAll('button').forEach(b => b.disabled = !enabled);
+  }
+
+  slotEls.forEach((el, i) => el.addEventListener('click', () => clearSlot(i)));
+
+  // ---------- 말하기(TTS) ----------
+  function speak(text){
+    try {
+      if (!('speechSynthesis' in window)) return;
+      window.speechSynthesis.cancel();
+      const utter = new SpeechSynthesisUtterance(text);
+      utter.lang = 'ko-KR';
+      utter.rate = 0.85;
+      window.speechSynthesis.speak(utter);
+    } catch (e) { /* 음성 지원이 없으면 조용히 무시 */ }
+  }
+
+  // ---------- 그림 장면 & 문장 힌트 ----------
+  function renderScene(scene){
+    picFrame.innerHTML = '';
+    const box = document.createElement('div');
+    box.className = `scene ${scene.layout}`;
+    if (scene.layout === 'many'){
+      box.style.gridTemplateColumns = `repeat(${scene.parts.length <= 8 ? 4 : 5}, auto)`;
+    }
+    const addEmoji = (part) => {
+      const p = typeof part === 'string' ? { e: part } : part;
+      const span = document.createElement('span');
+      span.className = 'em' + (p.pick ? ' pick' : '');
+      span.textContent = p.e;
+      if (p.scale) span.style.transform = `scale(${p.scale})`; // 화면 크기와 상관없이 비율로 줄인다 (닳다: 짧아진 연필)
+      box.appendChild(span);
+    };
+    if (scene.layout === 'stack'){
+      scene.parts.forEach((part, i) => {
+        addEmoji(part);
+        if (i < scene.parts.length - 1){
+          const arrow = document.createElement('span');
+          arrow.className = 'arrow';
+          arrow.textContent = '▼';
+          box.appendChild(arrow);
+        }
+      });
+    } else {
+      scene.parts.forEach(addEmoji);
+    }
+    picFrame.appendChild(box);
+  }
+
+  function renderCaption(quiz){
+    const word = composeWord(quiz);
+    const blank = '○'.repeat(word.length);
+    picCaption.innerHTML = '';
+    quiz.caption.split('{w}').forEach((piece, i, arr) => {
+      picCaption.appendChild(document.createTextNode(piece));
+      if (i < arr.length - 1){
+        const b = document.createElement('span');
+        b.className = 'blank';
+        b.textContent = blank;
+        picCaption.appendChild(b);
+      }
+    });
+  }
+
+  // ---------- 문제 진행 ----------
+  function currentQuiz(){ return currentQuizSet[currentQuestionIndex]; }
+
+  function loadQuestion(){
+    const quiz = currentQuiz();
+    wrongAttempts = 0;
+    questionState = 'answering';
+
+    renderScene(quiz.scene);
+    renderCaption(quiz);
+    prefixLetter.textContent = quiz.prefix;
+    targetLetter.textContent = quiz.target;
+    suffixLetter.textContent = quiz.suffix;
+    prefixCell.hidden = !quiz.prefix;
+    suffixCell.hidden = !quiz.suffix;
+
+    targetCell.className = 'cell target-cell';
+    cellComposed.hidden = true;
+    cellComposed.textContent = '';
+    resetSlots();
+
+    feedback.textContent = '';
+    feedback.className = 'feedback';
+    hintEl.hidden = true;
+    hintEl.textContent = '';
+    composedRow.hidden = true;
+    composedWordEl.textContent = '';
+    pronEl.hidden = true;
+    pronEl.textContent = '';
+
+    checkBtn.classList.remove('hidden');
+    nextBtn.classList.add('hidden');
+    setKeypadEnabled(true);
+
+    qNum.textContent = currentQuestionIndex + 1;
+    progressFill.style.width = `${((currentQuestionIndex + 1) / totalQuestions) * 100}%`;
+    levelChip.textContent = LEVEL_NAMES[quiz.level] || '';
+    scoreChip.textContent = `맞은 개수 ${correctCount}개`;
+  }
+
+  function showFeedback(text, kind){
+    feedback.textContent = text;
+    feedback.className = `feedback ${kind}`;
+  }
+
+  function triggerShake(){
+    worksheet.classList.add('shake');
+    setTimeout(() => worksheet.classList.remove('shake'), 500);
+  }
+
+  function revealComposed(stateClass){
+    const quiz = currentQuiz();
+    cellComposed.textContent = composeChar(quiz);
+    cellComposed.hidden = false;
+    targetCell.classList.add('done', stateClass);
+    const word = composeWord(quiz);
+    composedWordEl.textContent = word;
+    composedRow.hidden = false;
+    speak(pronunciationOf(word));   // 처음 한 번은 자동으로 들려주되, 발음 표기는 스피커를 눌렀을 때 보여준다
+  }
+
+  // 스피커: 소리를 들려주고 오른쪽에 [발음]을 표시한다
+  function playWordWithPronunciation(){
+    const word = composedWordEl.textContent;
+    if (!word) return;
+    const pron = pronunciationOf(word);
+    speak(pron);
+    pronEl.textContent = `[${pron}]`;
+    pronEl.hidden = true;           // 다시 눌러도 나타나는 애니메이션이 보이도록
+    void pronEl.offsetWidth;
+    pronEl.hidden = false;
+  }
+
+  function finishQuestion(){
+    setKeypadEnabled(false);
+    checkBtn.classList.add('hidden');
+    nextBtn.classList.remove('hidden');
+    nextBtn.focus();
+  }
+
+  function checkAnswer(){
+    if (!(slots[0] && slots[1])) return;
+    const quiz = currentQuiz();
+    const correctParts = COMPOUND_PARTS[quiz.answer];
+    const isCorrect = slots[0] === correctParts[0] && slots[1] === correctParts[1];
+
+    if (isCorrect){
+      questionState = 'correct';
+      correctCount++;
+      slotEls.forEach(el => el.classList.add('correct'));
+      showFeedback('⭕ 정답이에요! 참 잘했어요!', 'correct');
+      revealComposed('correct');
+      finishQuestion();
+      scoreChip.textContent = `맞은 개수 ${correctCount}개`;
+    } else {
+      wrongAttempts++;
+      if (!reviewTypes.has(quiz.answer)) reviewTypes.set(quiz.answer, quiz);
+      showFeedback('❌ 다시 한번 생각해 볼까요?', 'wrong');
+      triggerShake();
+      resetSlots();
+      if (wrongAttempts >= 2){
+        hintEl.hidden = false;
+        hintEl.textContent = `💡 힌트: 왼쪽 받침 자리에는 '${correctParts[0]}'이 들어가요`;
+      }
+    }
+  }
+
+  function revealAnswer(){
+    if (questionState !== 'answering') return;
+    const quiz = currentQuiz();
+    const correctParts = COMPOUND_PARTS[quiz.answer];
+    questionState = 'revealed';
+    slots = [...correctParts];
+    renderSlots();
+    slotEls.forEach(el => el.classList.add('revealed'));
+    showFeedback('🧑‍🏫 선생님이 정답을 보여줬어요', 'info');
+    hintEl.hidden = true;
+    revealComposed('revealed');
+    finishQuestion();
+  }
+
+  function goToNextIndex(){
+    endDrag();
+    currentQuestionIndex++;
+    if (currentQuestionIndex < currentQuizSet.length){
+      loadQuestion();
+    } else {
+      showResult();
+    }
+  }
+
+  function showResult(){
+    stageEls.forEach(el => el.hidden = true);
+    resultArea.hidden = false;
+    scoreLine.textContent = `${totalQuestions}문제 중 ${correctCount}문제를 맞혔어요`;
+
+    reviewChips.innerHTML = '';
+    if (reviewTypes.size === 0){
+      const p = document.createElement('p');
+      p.textContent = '한 번도 틀리지 않았어요, 최고예요! 👏';
+      p.style.color = 'var(--ink-soft)';
+      p.style.margin = '0';
+      reviewChips.appendChild(p);
+    } else {
+      reviewTypes.forEach((quiz, type) => {
+        const chip = document.createElement('span');
+        chip.className = 'review-chip';
+        chip.innerHTML = `${type}<small>${composeWord(quiz)}</small>`;
+        reviewChips.appendChild(chip);
+      });
+    }
+  }
+
+  function restartQuiz(){
+    currentQuestionIndex = 0;
+    correctCount = 0;
+    reviewTypes.clear();
+    currentQuizSet = generateQuizSet();
+    stageEls.forEach(el => el.hidden = false);
+    resultArea.hidden = true;
+    loadQuestion();
+  }
+
+  // ---------- 이벤트 ----------
+  checkBtn.addEventListener('click', checkAnswer);
+  nextBtn.addEventListener('click', goToNextIndex);
+  skipBtn.addEventListener('click', goToNextIndex);
+  revealBtn.addEventListener('click', revealAnswer);
+  restartBtn.addEventListener('click', restartQuiz);
+  soundBtn.addEventListener('click', playWordWithPronunciation);
+
+  // ---------- 시작 ----------
+  renderKeypad();
+  currentQuizSet = generateQuizSet();
+  loadQuestion();
+</script>
+
+</body>
+</html>
